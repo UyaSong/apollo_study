@@ -73,6 +73,8 @@ common::Status PiecewiseJerkPathOptimizer::Process(
                            : config_.piecewise_jerk_path_optimizer_config()
                                  .default_path_config();
 
+  // cost function各项权重系数
+  // 分别为：l, dl, ddl, dddl, 最后一项未使用
   std::array<double, 5> w = {
       config.l_weight(),
       config.dl_weight() *
@@ -233,12 +235,18 @@ PiecewiseJerkPathOptimizer::ConvertPathPointRefFromFrontAxeToRearAxe(
 }
 
 bool PiecewiseJerkPathOptimizer::OptimizePath(
+    // 横向l相对于s的pva;
     const std::pair<std::array<double, 3>, std::array<double, 3>>& init_state,
     const std::array<double, 3>& end_state,
+    // 偏离参考线横向l的距离，默认为0;学习模型输出的参考线路线长度（点的数量）
     std::vector<double> path_reference_l_ref, const size_t path_reference_size,
+    // 路径点的分辨率;是否使用学习模型输出的参考线;
     const double delta_s, const bool is_valid_path_reference,
+    // 各点位置边界（min，max）
     const std::vector<std::pair<double, double>>& lat_boundaries,
+    // 各点加速度边界（min，max）
     const std::vector<std::pair<double, double>>& ddl_bounds,
+    // 权重w;最大迭代次数max_iter;存放优化l结果的l,dl,ddl
     const std::array<double, 5>& w, const int max_iter, std::vector<double>* x,
     std::vector<double>* dx, std::vector<double>* ddx) {
   // num of knots
@@ -283,11 +291,13 @@ bool PiecewiseJerkPathOptimizer::OptimizePath(
                                      path_reference_l_ref);
   }
   // for debug:here should use std::move
+  // 设置l, dl, ddl, dddl优化权重
   piecewise_jerk_problem.set_weight_x(w[0]);
   piecewise_jerk_problem.set_weight_dx(w[1]);
   piecewise_jerk_problem.set_weight_ddx(w[2]);
   piecewise_jerk_problem.set_weight_dddx(w[3]);
 
+  // set_scale_factor(设置范围因子)的意义在于平滑p，v，a的差值，可以理解p > v > a
   piecewise_jerk_problem.set_scale_factor({1.0, 10.0, 100.0});
 
   auto start_time = std::chrono::system_clock::now();
